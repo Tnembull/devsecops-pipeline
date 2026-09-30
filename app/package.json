@@ -1,0 +1,14 @@
+{
+  "name": "secure-node-api",
+  "version": "1.0.0",
+  "description": "Production hardened microservice baseline for DevSecOps testing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "helmet": "^7.1.0"
+  }
+}

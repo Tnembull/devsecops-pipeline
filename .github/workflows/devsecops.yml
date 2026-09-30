@@ -1,0 +1,86 @@
+name: "DevSecOps Automated Security Pipeline"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Stage 1: Secret Leak Detection (Zero Credentials Posture)
+  # ----------------------------------------------------------------------------
+  secret-scan:
+    name: "Secret Detection (Gitleaks)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Run Gitleaks"
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ----------------------------------------------------------------------------
+  # Stage 2: Software Composition Analysis (SCA) & Dependency Vulnerability
+  # ----------------------------------------------------------------------------
+  sca-scan:
+    name: "Dependency Security Audit"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Set up Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: "Run NPM Audit"
+        run: |
+          cd app
+          npm audit --audit-level=high
+
+  # ----------------------------------------------------------------------------
+  # Stage 3: Container Security & Vulnerability Scanning (Trivy)
+  # ----------------------------------------------------------------------------
+  container-scan:
+    name: "Container Image Vulnerability (Trivy)"
+    runs-on: ubuntu-latest
+    needs: [secret-scan, sca-scan]
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Build Container Image"
+        run: |
+          docker build -t secure-service:${{ github.sha }} .
+
+      - name: "Run Aqua Trivy Vulnerability Scanner"
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "secure-service:${{ github.sha }}"
+          format: "table"
+          exit-code: "0" # Audit mode reporting
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+  # ----------------------------------------------------------------------------
+  # Stage 4: Dockerfile & IaC Linter (Hadolint)
+  # ----------------------------------------------------------------------------
+  dockerfile-lint:
+    name: "Dockerfile Best Practices (Hadolint)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Run Hadolint"
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
